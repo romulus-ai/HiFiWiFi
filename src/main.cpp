@@ -1,16 +1,13 @@
+#include <Arduino.h>
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <IRremoteESP8266.h>
 #include <IRsend.h>
 #include <RCSwitch.h>
 #include <ArduinoJson.h>
-
-//WIFI-Verbindungsdaten
-#define WIFI_SSID   "XXX"
-#define WIFI_PASS   "XXX"
-#define mqtt_server "XXX"
-#define mqtt_user   "XXX"
-#define mqtt_pass   "XXX"
+#include <secrets.h>
+#include <main.h>
 
 #define STATUS_LED 2 //internal LED give some feedback
 #define IR_PIN 5 // GPIO PIN 5 (D1) is for sending IR signals
@@ -19,17 +16,17 @@
 //IR-Signale koennen nach dem Einbinden der Bibliotheken ueber passende Beispielprogramme 
 //(Datei -> Beispiele -> IRremoteESP8266 -> IRrecvDumpV2) eingelesen/decodiert werden.
 //IR-Codes (in Hex) des Ventilators:
-#define IR_MAJ_VOLMINUS 0x807F10EF // Protocol NEC
-#define IR_MAJ_VOLPLUS  0x807FC03F // Protocol NEC
-#define IR_MAJ_PAIR     0x807F906F // Protocol NEC
-#define IR_MAJ_MUTE     0x807FCC33 // Protocol NEC
-#define IR_MAJ_POWER    0x807F807F // Protocol NEC
+#define IR_SOUNDBAR_VOLMINUS 0x807F10EF // Protocol NEC
+#define IR_SOUNDBAR_VOLPLUS  0x807FC03F // Protocol NEC
+#define IR_SOUNDBAR_PAIR     0x807F906F // Protocol NEC
+#define IR_SOUNDBAR_MUTE     0x807FCC33 // Protocol NEC
+#define IR_SOUNDBAR_POWER    0x807F807F // Protocol NEC
 
-#define IR_MAJ_VOLMINUS_STR "volminus"
-#define IR_MAJ_VOLPLUS_STR  "volplus"
-#define IR_MAJ_PAIR_STR     "pair"
-#define IR_MAJ_MUTE_STR     "mute"
-#define IR_MAJ_POWER_STR    "power"
+#define IR_SOUNDBAR_VOLMINUS_STR "volminus"
+#define IR_SOUNDBAR_VOLPLUS_STR  "volplus"
+#define IR_SOUNDBAR_PAIR_STR     "pair"
+#define IR_SOUNDBAR_MUTE_STR     "mute"
+#define IR_SOUNDBAR_POWER_STR    "power"
 
 
 #define IR_BEAM_POWER   0x10C8E11E // Protocol NEC
@@ -61,13 +58,13 @@
 #define IR_DELAY_MS 100
 
 // RC Commands
-#define RC_ESMART_UP   7994226
-#define RC_ESMART_STOP 7994232
-#define RC_ESMART_DOWN 7994228
+#define RC_SCREEN_UP   7994226
+#define RC_SCREEN_STOP 7994232
+#define RC_SCREEN_DOWN 7994228
 
-#define RC_ESMART_UP_STR    "up"
-#define RC_ESMART_STOP_STR  "stop"
-#define RC_ESMART_DOWN_STR  "down"
+#define RC_SCREEN_UP_STR    "up"
+#define RC_SCREEN_STOP_STR  "stop"
+#define RC_SCREEN_DOWN_STR  "down"
 
 //RC Switch Bitlength
 #define RC_BITS 24
@@ -76,9 +73,9 @@
 #define RC_REPS 3 // RC Repeats
 
 #define CLIENT_ID      "hifi_wifi"
-#define MAJORITY_TOPIC "ir_majority"
+#define SOUNDBAR_TOPIC "ir_soundbar"
 #define BEAMER_TOPIC   "ir_beamer"
-#define ESMART_TOPIC   "rc_esmart" 
+#define SCREEN_TOPIC   "rc_screen"
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -91,30 +88,35 @@ IRsend irsend(IR_PIN);
 // RC Switch to controll things via 433MHZ
 RCSwitch mySwitch = RCSwitch();
 
-#define SIZE_MAJ_REQ_ARR 5
+#define SIZE_SOUNDBAR_REQ_ARR 5
 #define SIZE_BEAM_REQ_ARR 10
-#define SIZE_ESMART_REQ_ARR 3
+#define SIZE_SCREEN_REQ_ARR 3
 
-String maj_requests[SIZE_MAJ_REQ_ARR] = { String(IR_MAJ_VOLMINUS_STR), String(IR_MAJ_VOLPLUS_STR), String( IR_MAJ_PAIR_STR), String( IR_MAJ_MUTE_STR), String( IR_MAJ_POWER_STR) };
+String soundbar_requests[SIZE_SOUNDBAR_REQ_ARR] = { String(IR_SOUNDBAR_VOLMINUS_STR), String(IR_SOUNDBAR_VOLPLUS_STR), String( IR_SOUNDBAR_PAIR_STR), String( IR_SOUNDBAR_MUTE_STR), String( IR_SOUNDBAR_POWER_STR) };
 String beamer_requests[SIZE_BEAM_REQ_ARR] = { String(IR_BEAM_POWER_STR), String( IR_BEAM_SOURCE_STR), String( IR_BEAM_MODE_STR), String( IR_BEAM_ENTER_STR), String( IR_BEAM_UP_STR), String( IR_BEAM_RIGHT_STR), String( IR_BEAM_DOWN_STR), String( IR_BEAM_LEFT_STR), String( IR_BEAM_BACK_STR), String( IR_BEAM_MENU_STR) };
-String esmart_requests[SIZE_ESMART_REQ_ARR] = { String(RC_ESMART_UP_STR), String( RC_ESMART_STOP_STR), String( RC_ESMART_DOWN_STR) };
+String screen_requests[SIZE_SCREEN_REQ_ARR] = { String(RC_SCREEN_UP_STR), String( RC_SCREEN_STOP_STR), String( RC_SCREEN_DOWN_STR) };
+
+String soundbar_requests_icons[SIZE_SOUNDBAR_REQ_ARR] = { "mdi:volume-minus", "mdi:volume-plus", "mdi:bluetooth", "mdi:volume-mute", "mdi:power" };
+String beamer_requests_icons[SIZE_BEAM_REQ_ARR] = { "mdi:power", "mdi:cast-variant", "mdi:camera-party-mode", "mdi:arrow-left-bottom-bold", "mdi:arrow-up-bold", "mdi:arrow-right-bold", "mdi:arrow-down-bold", "mdi:arrow-left-bold", "mdi:arrow-left-thin-circle-outline", "mdi:menu" };
+String screen_requests_icons[SIZE_SCREEN_REQ_ARR] = { "mdi:arrow-up-bold", "mdi:stop", "mdi:arrow-down-bold" };
+
 
 void wifiSetup() {
   //Setze WIFI-Module auf STA mode
   WiFi.mode(WIFI_STA);
- 
+
   //Verbinden
   Serial.println();
   Serial.println("[WIFI] Verbinden mit " + String(WIFI_SSID) );
   WiFi.begin(WIFI_SSID, WIFI_PASS);
- 
+
   //Warten bis Verbindung hergestellt wurde
   while (WiFi.status() != WL_CONNECTED) {
       Serial.print(".");
       delay(500);
   }
   Serial.println();
-  
+
   // Connected, blick 3 times and print ifo to serial
   digitalWrite(STATUS_LED, HIGH); // Turn the STATUS_LED off by making the voltage HIGH
   delay(200); // Wait for a second
@@ -127,14 +129,14 @@ void wifiSetup() {
   digitalWrite(STATUS_LED, HIGH); // Turn the STATUS_LED off by making the voltage HIGH
   delay(200); // Wait for a second
   digitalWrite(STATUS_LED, LOW); // Turn the STATUS_LED on (Note that LOW is the voltage level)
-  
+
   Serial.println("[WIFI] STATION Mode connected, SSID: " + WiFi.SSID() + ", IP-Adresse: " + WiFi.localIP().toString());
 
 }
 
 void setup() {
   delay(1500);
- 
+
   Serial.begin(115200);
   pinMode(STATUS_LED, OUTPUT); // Initialize the LED pin as an output
   digitalWrite(STATUS_LED, LOW); // Let the LED shine
@@ -145,13 +147,14 @@ void setup() {
   // MQTT
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+  client.setBufferSize(1024);
   Serial.printf("[MQTT] Configured, Server: %s, Port: 1883\n", mqtt_server);
 
   // IR LED
   irsend.begin();
   Serial.println("[IR] Initialized");
 
-  
+
   mySwitch.enableTransmit(RC_PIN);
   mySwitch.setPulseLength(RC_PULSELENGTH);
   mySwitch.setRepeatTransmit(RC_REPS);
@@ -200,12 +203,12 @@ void reconnect() {
     Serial.printf("[MQTT] connecting...\n");
     if (client.connect(CLIENT_ID,mqtt_user,mqtt_pass)) {
      Serial.printf("[MQTT] Connected, ClientID: %s, User: %s, Password: %s\n", CLIENT_ID, mqtt_user, mqtt_pass);
-     client.subscribe(MAJORITY_TOPIC);
-     Serial.printf("[MQTT] subscribed topic %s\n", MAJORITY_TOPIC);
+     client.subscribe(SOUNDBAR_TOPIC);
+     Serial.printf("[MQTT] subscribed topic %s\n", SOUNDBAR_TOPIC);
      client.subscribe(BEAMER_TOPIC);
      Serial.printf("[MQTT] subscribed topic %s\n", BEAMER_TOPIC);
-     client.subscribe(ESMART_TOPIC);
-     Serial.printf("[MQTT] subscribed topic %s\n", ESMART_TOPIC);
+     client.subscribe(SCREEN_TOPIC);
+     Serial.printf("[MQTT] subscribed topic %s\n", SCREEN_TOPIC);
     } else {
       Serial.printf("[MQTT] connecting failed, retry after a few seconds...\n");
       delay(6000);
@@ -222,11 +225,11 @@ void handleHTTP() {
     return;
   }
   Serial.println("[WEBSRV] New Client connected");
-  
+
   while ( (!client.available()) && (timeout_busy++ < 5000) ){
     delay(1);
   }
-  
+
   if (timeout_busy >= 5000) {
     Serial.println("[WEBSRV] timeout, disconnecting client");
     client.flush();
@@ -236,13 +239,13 @@ void handleHTTP() {
     return;
   }
 
-  
+
   Serial.println("[WEBSRV] connection made");
-  
+
   String payload = client.readStringUntil('\r');
   client.flush();
-  
-  Serial.print("[WEBSRV] Recv http: ");  
+
+  Serial.print("[WEBSRV] Recv http: ");
   Serial.println(payload);
   delay(100);
 
@@ -261,9 +264,9 @@ void handleHTTP() {
     requestHandler(strTopic, strRequest);
   }
 
-  String strMajorityTopic = "?topic=" + String(MAJORITY_TOPIC) + "&request=";
+  String strSoundbarTopic = "?topic=" + String(SOUNDBAR_TOPIC) + "&request=";
   String strBeamerTopic = "?topic=" + String(BEAMER_TOPIC) + "&request=";
-  String strEsmartTopic = "?topic=" + String(ESMART_TOPIC) + "&request=";
+  String strScreenTopic = "?topic=" + String(SCREEN_TOPIC) + "&request=";
 
   // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
   // and a content-type so the client knows what's coming, then a blank line:
@@ -283,7 +286,7 @@ void handleHTTP() {
   client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
   client.println("table, th, td { border: thin solid; border-collapse: collapse; }");
   client.println(".button2 {background-color: #77878A;}</style></head>");
-  
+
   // Web Page Heading
   client.println("<body><h1>HiFi Wifi Web</h1>");
 
@@ -293,7 +296,7 @@ void handleHTTP() {
   client.println("<td><p><a href=\"/?topic=mixed&request=stopwatching\"><button class=\"button\">Stop Watching</button></a></td>");
   client.println("</tr>");
   client.println("</table>");
-  
+
   client.println("<table>");
   client.println("<tr>");
   client.println("<td><h2>Soundbar Controls</h2></td>");
@@ -303,12 +306,12 @@ void handleHTTP() {
 
   client.println("<tr>");
   client.println("<td>");
-  
-  client.println("<p><a href=\"/" + strMajorityTopic + IR_MAJ_POWER_STR + "\"><button class=\"button\">Power</button></a></p>");
-  client.println("<p><a href=\"/" + strMajorityTopic + IR_MAJ_VOLPLUS_STR + "\"><button class=\"button\">VOL+</button></a></p>");
-  client.println("<p><a href=\"/" + strMajorityTopic + IR_MAJ_VOLMINUS_STR + "\"><button class=\"button\">VOL-</button></a></p>");
-  client.println("<p><a href=\"/" + strMajorityTopic + IR_MAJ_MUTE_STR + "\"><button class=\"button\">Mute</button></a></p>");
-  client.println("<p><a href=\"/" + strMajorityTopic + IR_MAJ_PAIR_STR + "\"><button class=\"button\">Bluetooth Pair</button></a></p>");
+
+  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_POWER_STR + "\"><button class=\"button\">Power</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_VOLPLUS_STR + "\"><button class=\"button\">VOL+</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_VOLMINUS_STR + "\"><button class=\"button\">VOL-</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_MUTE_STR + "\"><button class=\"button\">Mute</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_PAIR_STR + "\"><button class=\"button\">Bluetooth Pair</button></a></p>");
   client.println("</td>");
 
   client.println("<td>");
@@ -325,12 +328,12 @@ void handleHTTP() {
   client.println("</td>");
 
   client.println("<td>");
-  client.println("<p><a href=\"/" + strEsmartTopic + RC_ESMART_UP_STR + "\"><button class=\"button\">UP</button></a></p>");
-  client.println("<p><a href=\"/" + strEsmartTopic + RC_ESMART_DOWN_STR + "\"><button class=\"button\">DOWN</button></a></p>");
-  client.println("<p><a href=\"/" + strEsmartTopic + RC_ESMART_STOP_STR + "\"><button class=\"button\">STOP</button></a></p>");
+  client.println("<p><a href=\"/" + strScreenTopic + RC_SCREEN_UP_STR + "\"><button class=\"button\">UP</button></a></p>");
+  client.println("<p><a href=\"/" + strScreenTopic + RC_SCREEN_DOWN_STR + "\"><button class=\"button\">DOWN</button></a></p>");
+  client.println("<p><a href=\"/" + strScreenTopic + RC_SCREEN_STOP_STR + "\"><button class=\"button\">STOP</button></a></p>");
   client.println("</td>");
   client.println("</tr>");
-  
+
   client.println("</table></body></html>");
   // The HTTP response ends with another blank line
   client.println();
@@ -355,36 +358,36 @@ void requestHandler(String strTopic, String strRequest) {
   digitalWrite(STATUS_LED, LOW); // Turn the STATUS_LED on (Note that LOW is the voltage level)
   delay(200); // Wait for a second
 
-  if(strTopic == MAJORITY_TOPIC) {
-    Serial.println("[IR HANDLER] topic: " + String(MAJORITY_TOPIC));
-    if(strRequest == IR_MAJ_VOLPLUS_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_MAJ_VOLPLUS_STR) + " HEX: " + uint64ToString(IR_MAJ_VOLPLUS));
-      irsend.sendNEC(IR_MAJ_VOLPLUS, IR_BITS, IR_WDH); 
-    } 
-    else if (strRequest == IR_MAJ_VOLMINUS_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_MAJ_VOLMINUS_STR) + " HEX: " + uint64ToString(IR_MAJ_VOLMINUS));
-      irsend.sendNEC(IR_MAJ_VOLMINUS, IR_BITS, IR_WDH);
+  if(strTopic == SOUNDBAR_TOPIC) {
+    Serial.println("[IR HANDLER] topic: " + String(SOUNDBAR_TOPIC));
+    if(strRequest == IR_SOUNDBAR_VOLPLUS_STR) {
+      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_VOLPLUS_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_VOLPLUS));
+      irsend.sendNEC(IR_SOUNDBAR_VOLPLUS, IR_BITS, IR_WDH);
     }
-    else if (strRequest == IR_MAJ_PAIR_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_MAJ_PAIR_STR) + " HEX: " + uint64ToString(IR_MAJ_PAIR));
-      irsend.sendNEC(IR_MAJ_PAIR, IR_BITS, IR_WDH);
+    else if (strRequest == IR_SOUNDBAR_VOLMINUS_STR) {
+      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_VOLMINUS_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_VOLMINUS));
+      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
     }
-    else if (strRequest == IR_MAJ_MUTE_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_MAJ_MUTE_STR) + " HEX: " + uint64ToString(IR_MAJ_MUTE));
-      irsend.sendNEC(IR_MAJ_MUTE, IR_BITS, IR_WDH);
+    else if (strRequest == IR_SOUNDBAR_PAIR_STR) {
+      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_PAIR_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_PAIR));
+      irsend.sendNEC(IR_SOUNDBAR_PAIR, IR_BITS, IR_WDH);
     }
-    else if (strRequest == IR_MAJ_POWER_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_MAJ_POWER_STR) + " HEX: " + uint64ToString(IR_MAJ_POWER));
-      irsend.sendNEC(IR_MAJ_POWER, IR_BITS, IR_WDH);
+    else if (strRequest == IR_SOUNDBAR_MUTE_STR) {
+      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_MUTE_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_MUTE));
+      irsend.sendNEC(IR_SOUNDBAR_MUTE, IR_BITS, IR_WDH);
+    }
+    else if (strRequest == IR_SOUNDBAR_POWER_STR) {
+      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_POWER_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_POWER));
+      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
     }
   }
-  
+
   else if(strTopic == BEAMER_TOPIC) {
     Serial.println("[IR HANDLER] topic: " + String(BEAMER_TOPIC));
     if(strRequest == IR_BEAM_POWER_STR) {
       Serial.println("[IR HANDLER] sending signal " + String(IR_BEAM_POWER_STR) + " HEX: " + uint64ToString(IR_BEAM_POWER));
-      irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH); 
-    } 
+      irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
+    }
     else if (strRequest == IR_BEAM_SOURCE_STR) {
       Serial.println("[IR HANDLER] sending signal " + String(IR_BEAM_SOURCE_STR) + " HEX: " + uint64ToString(IR_BEAM_SOURCE));
       irsend.sendNEC(IR_BEAM_SOURCE, IR_BITS, IR_WDH);
@@ -423,19 +426,19 @@ void requestHandler(String strTopic, String strRequest) {
     }
   }
 
-  else if(strTopic == ESMART_TOPIC) {
-    Serial.println("[IR HANDLER] topic: " + String(ESMART_TOPIC));
-    if (strRequest == RC_ESMART_UP_STR) {
-      Serial.println("[RC HANDLER] sending signal " + String(RC_ESMART_UP_STR) + " DEC: " + String(RC_ESMART_UP));
-      mySwitch.send(RC_ESMART_UP, RC_BITS);
+  else if(strTopic == SCREEN_TOPIC) {
+    Serial.println("[IR HANDLER] topic: " + String(SCREEN_TOPIC));
+    if (strRequest == RC_SCREEN_UP_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SCREEN_UP_STR) + " DEC: " + String(RC_SCREEN_UP));
+      mySwitch.send(RC_SCREEN_UP, RC_BITS);
     }
-    else if (strRequest == RC_ESMART_STOP_STR) {
-      Serial.println("[RC HANDLER] sending signal " + String(RC_ESMART_STOP_STR) + " DEC: " + String(RC_ESMART_STOP));
-      mySwitch.send(RC_ESMART_STOP, RC_BITS);
+    else if (strRequest == RC_SCREEN_STOP_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SCREEN_STOP_STR) + " DEC: " + String(RC_SCREEN_STOP));
+      mySwitch.send(RC_SCREEN_STOP, RC_BITS);
     }
-    else if (strRequest == RC_ESMART_DOWN_STR) {
-      Serial.println("[RC HANDLER] sending signal " + String(RC_ESMART_DOWN_STR) + " DEC: " + String(RC_ESMART_DOWN));
-      mySwitch.send(RC_ESMART_DOWN, RC_BITS);
+    else if (strRequest == RC_SCREEN_DOWN_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SCREEN_DOWN_STR) + " DEC: " + String(RC_SCREEN_DOWN));
+      mySwitch.send(RC_SCREEN_DOWN, RC_BITS);
     }
   }
 
@@ -443,23 +446,23 @@ void requestHandler(String strTopic, String strRequest) {
     Serial.println("[MXD HANDLER] topic: mixed");
     if (strRequest == "watching") {
       Serial.println("[MXD HANDLER] triggering watching mode, screen down, beamer power, soundbar power, soundbar volume 3 times down");
-      mySwitch.send(RC_ESMART_DOWN, RC_BITS);
+      mySwitch.send(RC_SCREEN_DOWN, RC_BITS);
       irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
       delay(1000);
-      irsend.sendNEC(IR_MAJ_POWER, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_MAJ_VOLMINUS, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_MAJ_VOLMINUS, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_MAJ_VOLMINUS, IR_BITS, IR_WDH);
-    } 
-    
+      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
+      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
+      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
+      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
+    }
+
     else if (strRequest == "stopwatching") {
       Serial.println("[MXD HANDLER] triggering stop watching mode, screen up, beamer power off, soundbar power off");
-      mySwitch.send(RC_ESMART_UP, RC_BITS);
+      mySwitch.send(RC_SCREEN_UP, RC_BITS);
       irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
       delay(2000);
       irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
       delay(1000);
-      irsend.sendNEC(IR_MAJ_POWER, IR_BITS, IR_WDH);
+      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
     }
   }
 
@@ -488,61 +491,126 @@ String uint64ToString(uint64_t input) {
 // see https://www.home-assistant.io/docs/mqtt/discovery/
 void haMQTTDiscovery() {
   Serial.println("[DISCOVERY] Publishing devices to MQTT");
-  for (int i = 0; i < SIZE_MAJ_REQ_ARR; i++) {
+
+  DynamicJsonDocument deviceDoc(512);
+  deviceDoc["manufacturer"] = "Thomas Bruckmann";
+
+  for (int i = 0; i < SIZE_SOUNDBAR_REQ_ARR; i++) {
+
     DynamicJsonDocument doc(1024);
-    String unique_id = "soundbar_" + maj_requests[i] + "_button";
+
+    String unique_id = "soundbar_" + soundbar_requests[i] + "_button";
     String topic = "homeassistant/button/" + unique_id + "/config";
-    
+
     doc["unique_id"] = unique_id;
-    doc["name"]   = maj_requests[i] + "soundbar";
-    doc["command_topic"] = MAJORITY_TOPIC;
-    doc["payload_press"] = maj_requests[i];
+    doc["name"]   = soundbar_requests[i];
+    doc["command_topic"] = SOUNDBAR_TOPIC;
+    doc["payload_press"] = soundbar_requests[i];
     doc["entity_category"] = "config";
+    doc["icon"] = soundbar_requests_icons[i];
+
+    deviceDoc["name"] = "HiFiWiFi Soundbar";
+    deviceDoc["identifiers"] = "hifiwifi01";
+    deviceDoc["model"] = "HiFiWiFi Sound";
+    doc["device"] = deviceDoc;
 
     String jsonDoc = "";
 
     serializeJson(doc, jsonDoc);
 
-    Serial.println("[DISCOVERY] Publishing " + topic + ": " + jsonDoc);
-    client.publish(topic.c_str(), jsonDoc.c_str() , true);
+    if (client.publish(topic.c_str(), jsonDoc.c_str() , true)) {
+      Serial.println("[DISCOVERY] Successful publishing " + topic + ": " + jsonDoc);
+    } else {
+      Serial.println("[DISCOVERY] ERROR publishing " + topic + ": " + jsonDoc);
+    }
   }
 
   for (int i = 0; i < SIZE_BEAM_REQ_ARR; i++) {
     DynamicJsonDocument doc(1024);
     String unique_id = "beamer_" + beamer_requests[i] + "_button";
     String topic = "homeassistant/button/" + unique_id + "/config";
-    
+
     doc["unique_id"] = unique_id;
-    doc["name"]   = beamer_requests[i] + "beamer";
+    doc["name"]   = beamer_requests[i];
     doc["command_topic"] = BEAMER_TOPIC;
     doc["payload_press"] = beamer_requests[i];
     doc["entity_category"] = "config";
+    doc["icon"] = beamer_requests_icons[i];
+
+    deviceDoc["name"] = "HiFiWiFi Beamer";
+    deviceDoc["identifiers"] = "hifiwifi02";
+    deviceDoc["model"] = "HiFiWiFi Beam";
+    doc["device"] = deviceDoc;
 
     String jsonDoc = "";
 
     serializeJson(doc, jsonDoc);
 
-    Serial.println("[DISCOVERY] Publishing " + topic + ": " + jsonDoc);
-    client.publish(topic.c_str(), jsonDoc.c_str() , true);
+    if (client.publish(topic.c_str(), jsonDoc.c_str() , true)) {
+      Serial.println("[DISCOVERY] Successful publishing " + topic + ": " + jsonDoc);
+    } else {
+      Serial.println("[DISCOVERY] ERROR publishing " + topic + ": " + jsonDoc);
+    }
   }
 
-  for (int i = 0; i < SIZE_ESMART_REQ_ARR; i++) {
+  for (int i = 0; i < SIZE_SCREEN_REQ_ARR; i++) {
     DynamicJsonDocument doc(1024);
-    String unique_id = "screen_" + esmart_requests[i] + "_button";
+    String unique_id = "screen_" + screen_requests[i] + "_button";
     String topic = "homeassistant/button/" + unique_id + "/config";
-    
+
     doc["unique_id"] = unique_id;
-    doc["name"]   = esmart_requests[i] + "screen";
-    doc["command_topic"] = ESMART_TOPIC;
-    doc["payload_press"] = esmart_requests[i];
+    doc["name"]   = screen_requests[i];
+    doc["command_topic"] = SCREEN_TOPIC;
+    doc["payload_press"] = screen_requests[i];
     doc["entity_category"] = "config";
+    doc["icon"] = screen_requests_icons[i];
+
+    deviceDoc["name"] = "HiFiWiFi Screen";
+    deviceDoc["identifiers"] = "hifiwifi03";
+    deviceDoc["model"] = "HiFiWiFi Screen";
+    doc["device"] = deviceDoc;
 
     String jsonDoc = "";
 
     serializeJson(doc, jsonDoc);
 
-    Serial.println("[DISCOVERY] Publishing " + topic + ": " + jsonDoc);
-    client.publish(topic.c_str(), jsonDoc.c_str() , true);
+    if (client.publish(topic.c_str(), jsonDoc.c_str() , true)) {
+      Serial.println("[DISCOVERY] Successful publishing " + topic + ": " + jsonDoc);
+    } else {
+      Serial.println("[DISCOVERY] ERROR publishing " + topic + ": " + jsonDoc);
+    }
   }
+
+  String mixedcmds[2] = {"watching", "stopwatching"};
+  String mixedcmdsIcons[2] = {"mdi:projector-screen-variant", "mdi:projector-screen-variant-off"};
+
+  for (int i = 0; i < 2; i++) {
+    DynamicJsonDocument doc(1024);
+    String unique_id = "mixed_" + mixedcmds[i] + "_button";
+    String topic = "homeassistant/button/" + unique_id + "/config";
+
+    doc["unique_id"] = unique_id;
+    doc["name"]   = mixedcmds[i];
+    doc["command_topic"] = SCREEN_TOPIC;
+    doc["payload_press"] = mixedcmds[i];
+    doc["entity_category"] = "config";
+    doc["icon"] = mixedcmdsIcons[i];
+
+    deviceDoc["name"] = "HiFiWiFi Mixed";
+    deviceDoc["identifiers"] = "hifiwifi04";
+    deviceDoc["model"] = "HiFiWiFi Mixed";
+    doc["device"] = deviceDoc;
+
+    String jsonDoc = "";
+
+    serializeJson(doc, jsonDoc);
+
+    if (client.publish(topic.c_str(), jsonDoc.c_str() , true)) {
+      Serial.println("[DISCOVERY] Successful publishing " + topic + ": " + jsonDoc);
+    } else {
+      Serial.println("[DISCOVERY] ERROR publishing " + topic + ": " + jsonDoc);
+    }
+  }
+
   Serial.println("[DISCOVERY] Finished publishing devices to MQTT");
 }
