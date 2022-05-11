@@ -10,23 +10,21 @@
 #include <main.h>
 
 #define STATUS_LED 2 //internal LED give some feedback
-#define IR_PIN 5 // GPIO PIN 5 (D1) is for sending IR signals
-#define RC_PIN 12    // RC Switch at GPIO 12 which is D6
+#define IR_PIN 12 // GPIO PIN 12 (D6) is for sending IR signals
+#define RC_PIN 14    // RC Switch at GPIO 14 which is D5
 
-//IR-Signale koennen nach dem Einbinden der Bibliotheken ueber passende Beispielprogramme 
-//(Datei -> Beispiele -> IRremoteESP8266 -> IRrecvDumpV2) eingelesen/decodiert werden.
-//IR-Codes (in Hex) des Ventilators:
-#define IR_SOUNDBAR_VOLMINUS 0x807F10EF // Protocol NEC
-#define IR_SOUNDBAR_VOLPLUS  0x807FC03F // Protocol NEC
-#define IR_SOUNDBAR_PAIR     0x807F906F // Protocol NEC
-#define IR_SOUNDBAR_MUTE     0x807FCC33 // Protocol NEC
-#define IR_SOUNDBAR_POWER    0x807F807F // Protocol NEC
+//RC Protocol for soundbar
+#define RC_SOUNDBAR_VOLMINUS 7984233
+#define RC_SOUNDBAR_VOLPLUS  7984234
+#define RC_SOUNDBAR_PAIR     7984235
+#define RC_SOUNDBAR_MUTE     7984236
+#define RC_SOUNDBAR_POWER    7984237
 
-#define IR_SOUNDBAR_VOLMINUS_STR "volminus"
-#define IR_SOUNDBAR_VOLPLUS_STR  "volplus"
-#define IR_SOUNDBAR_PAIR_STR     "pair"
-#define IR_SOUNDBAR_MUTE_STR     "mute"
-#define IR_SOUNDBAR_POWER_STR    "power"
+#define RC_SOUNDBAR_VOLMINUS_STR "volminus"
+#define RC_SOUNDBAR_VOLPLUS_STR  "volplus"
+#define RC_SOUNDBAR_PAIR_STR     "pair"
+#define RC_SOUNDBAR_MUTE_STR     "mute"
+#define RC_SOUNDBAR_POWER_STR    "power"
 
 
 #define IR_BEAM_POWER   0x10C8E11E // Protocol NEC
@@ -92,7 +90,7 @@ RCSwitch mySwitch = RCSwitch();
 #define SIZE_BEAM_REQ_ARR 10
 #define SIZE_SCREEN_REQ_ARR 3
 
-String soundbar_requests[SIZE_SOUNDBAR_REQ_ARR] = { String(IR_SOUNDBAR_VOLMINUS_STR), String(IR_SOUNDBAR_VOLPLUS_STR), String( IR_SOUNDBAR_PAIR_STR), String( IR_SOUNDBAR_MUTE_STR), String( IR_SOUNDBAR_POWER_STR) };
+String soundbar_requests[SIZE_SOUNDBAR_REQ_ARR] = { String(RC_SOUNDBAR_VOLMINUS_STR), String(RC_SOUNDBAR_VOLPLUS_STR), String( RC_SOUNDBAR_PAIR_STR), String( RC_SOUNDBAR_MUTE_STR), String( RC_SOUNDBAR_POWER_STR) };
 String beamer_requests[SIZE_BEAM_REQ_ARR] = { String(IR_BEAM_POWER_STR), String( IR_BEAM_SOURCE_STR), String( IR_BEAM_MODE_STR), String( IR_BEAM_ENTER_STR), String( IR_BEAM_UP_STR), String( IR_BEAM_RIGHT_STR), String( IR_BEAM_DOWN_STR), String( IR_BEAM_LEFT_STR), String( IR_BEAM_BACK_STR), String( IR_BEAM_MENU_STR) };
 String screen_requests[SIZE_SCREEN_REQ_ARR] = { String(RC_SCREEN_UP_STR), String( RC_SCREEN_STOP_STR), String( RC_SCREEN_DOWN_STR) };
 
@@ -307,11 +305,11 @@ void handleHTTP() {
   client.println("<tr>");
   client.println("<td>");
 
-  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_POWER_STR + "\"><button class=\"button\">Power</button></a></p>");
-  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_VOLPLUS_STR + "\"><button class=\"button\">VOL+</button></a></p>");
-  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_VOLMINUS_STR + "\"><button class=\"button\">VOL-</button></a></p>");
-  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_MUTE_STR + "\"><button class=\"button\">Mute</button></a></p>");
-  client.println("<p><a href=\"/" + strSoundbarTopic + IR_SOUNDBAR_PAIR_STR + "\"><button class=\"button\">Bluetooth Pair</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + RC_SOUNDBAR_POWER_STR + "\"><button class=\"button\">Power</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + RC_SOUNDBAR_VOLPLUS_STR + "\"><button class=\"button\">VOL+</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + RC_SOUNDBAR_VOLMINUS_STR + "\"><button class=\"button\">VOL-</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + RC_SOUNDBAR_MUTE_STR + "\"><button class=\"button\">Mute</button></a></p>");
+  client.println("<p><a href=\"/" + strSoundbarTopic + RC_SOUNDBAR_PAIR_STR + "\"><button class=\"button\">Bluetooth Pair</button></a></p>");
   client.println("</td>");
 
   client.println("<td>");
@@ -359,26 +357,26 @@ void requestHandler(String strTopic, String strRequest) {
   delay(200); // Wait for a second
 
   if(strTopic == SOUNDBAR_TOPIC) {
-    Serial.println("[IR HANDLER] topic: " + String(SOUNDBAR_TOPIC));
-    if(strRequest == IR_SOUNDBAR_VOLPLUS_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_VOLPLUS_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_VOLPLUS));
-      irsend.sendNEC(IR_SOUNDBAR_VOLPLUS, IR_BITS, IR_WDH);
+    Serial.println("[RC HANDLER] topic: " + String(SOUNDBAR_TOPIC));
+    if (strRequest == RC_SOUNDBAR_VOLPLUS_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SOUNDBAR_VOLPLUS_STR) + " DEC: " + String(RC_SOUNDBAR_VOLPLUS));
+      mySwitch.send(RC_SOUNDBAR_VOLPLUS, RC_BITS);
     }
-    else if (strRequest == IR_SOUNDBAR_VOLMINUS_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_VOLMINUS_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_VOLMINUS));
-      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
+    else if (strRequest == RC_SOUNDBAR_VOLMINUS_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SOUNDBAR_VOLMINUS_STR) + " DEC: " + String(RC_SOUNDBAR_VOLMINUS));
+      mySwitch.send(RC_SOUNDBAR_VOLMINUS, RC_BITS);
     }
-    else if (strRequest == IR_SOUNDBAR_PAIR_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_PAIR_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_PAIR));
-      irsend.sendNEC(IR_SOUNDBAR_PAIR, IR_BITS, IR_WDH);
+    else if (strRequest == RC_SOUNDBAR_PAIR_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SOUNDBAR_PAIR_STR) + " DEC: " + String(RC_SOUNDBAR_PAIR));
+      mySwitch.send(RC_SOUNDBAR_PAIR, RC_BITS);
     }
-    else if (strRequest == IR_SOUNDBAR_MUTE_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_MUTE_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_MUTE));
-      irsend.sendNEC(IR_SOUNDBAR_MUTE, IR_BITS, IR_WDH);
+    else if (strRequest == RC_SOUNDBAR_MUTE_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SOUNDBAR_MUTE_STR) + " DEC: " + String(RC_SOUNDBAR_MUTE));
+      mySwitch.send(RC_SOUNDBAR_MUTE, RC_BITS);
     }
-    else if (strRequest == IR_SOUNDBAR_POWER_STR) {
-      Serial.println("[IR HANDLER] sending signal " + String(IR_SOUNDBAR_POWER_STR) + " HEX: " + uint64ToString(IR_SOUNDBAR_POWER));
-      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
+    else if (strRequest == RC_SOUNDBAR_POWER_STR) {
+      Serial.println("[RC HANDLER] sending signal " + String(RC_SOUNDBAR_POWER_STR) + " DEC: " + String(RC_SOUNDBAR_POWER));
+      mySwitch.send(RC_SOUNDBAR_POWER, RC_BITS);
     }
   }
 
@@ -427,7 +425,7 @@ void requestHandler(String strTopic, String strRequest) {
   }
 
   else if(strTopic == SCREEN_TOPIC) {
-    Serial.println("[IR HANDLER] topic: " + String(SCREEN_TOPIC));
+    Serial.println("[RC HANDLER] topic: " + String(SCREEN_TOPIC));
     if (strRequest == RC_SCREEN_UP_STR) {
       Serial.println("[RC HANDLER] sending signal " + String(RC_SCREEN_UP_STR) + " DEC: " + String(RC_SCREEN_UP));
       mySwitch.send(RC_SCREEN_UP, RC_BITS);
@@ -449,10 +447,10 @@ void requestHandler(String strTopic, String strRequest) {
       mySwitch.send(RC_SCREEN_DOWN, RC_BITS);
       irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
       delay(1000);
-      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
-      irsend.sendNEC(IR_SOUNDBAR_VOLMINUS, IR_BITS, IR_WDH);
+      mySwitch.send(RC_SOUNDBAR_POWER, RC_BITS);
+      mySwitch.send(RC_SOUNDBAR_VOLMINUS, RC_BITS);
+      mySwitch.send(RC_SOUNDBAR_VOLMINUS, RC_BITS);
+      mySwitch.send(RC_SOUNDBAR_VOLMINUS, RC_BITS);
     }
 
     else if (strRequest == "stopwatching") {
@@ -462,7 +460,7 @@ void requestHandler(String strTopic, String strRequest) {
       delay(2000);
       irsend.sendNEC(IR_BEAM_POWER, IR_BITS, IR_WDH);
       delay(1000);
-      irsend.sendNEC(IR_SOUNDBAR_POWER, IR_BITS, IR_WDH);
+      mySwitch.send(RC_SOUNDBAR_POWER, RC_BITS);
     }
   }
 
