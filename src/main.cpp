@@ -130,6 +130,8 @@ void wifiSetup() {
 
   Serial.println("[WIFI] STATION Mode connected, SSID: " + WiFi.SSID() + ", IP-Adresse: " + WiFi.localIP().toString());
 
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
 }
 
 void setup() {
